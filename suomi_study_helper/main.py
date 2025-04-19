@@ -4,23 +4,19 @@ Script to figure out the lemmas in Finnish sentences.
 import dataclasses
 import json
 from typing import Any, TypeGuard
-from dotenv import load_dotenv
 from platformdirs import user_cache_dir
 from joblib import Memory # type: ignore
 from openai import OpenAI
 from uralicNLP import uralicApi # type: ignore
 import uralicNLP.tokenizer # type: ignore
 import uralicNLP # type: ignore
-load_dotenv()
 
-APP_NAME = "suomi-study-helper"
-LANGUAGE_CODE = "fin"
-LANGUAGE_NAME = "Finnish"
+from config import config
 
-if not uralicApi.is_language_installed(LANGUAGE_CODE): # type: ignore
-    uralicApi.download(LANGUAGE_CODE) # type: ignore
+if not uralicApi.is_language_installed(config.language_code): # type: ignore
+    uralicApi.download(config.language_code) # type: ignore
 
-memory = Memory(user_cache_dir(APP_NAME), verbose=0)
+memory = Memory(user_cache_dir(config.app_name), verbose=0)
 
 @dataclasses.dataclass
 class AmbiguousTokenAnalysis:
@@ -119,7 +115,7 @@ def is_list_of_strings(val: Any) -> TypeGuard[list[str]]:
     return is_list(val) and all(isinstance(item, str) for item in val)
 
 def disambiguate_sentence_with_gpt(sentence: str, ambiguous_analysis: list[AmbiguousTokenAnalysis]) -> list[UnambiguosTokenAnalysis]:
-    prompt = f"""Here is a {LANGUAGE_NAME} sentence:
+    prompt = f"""Here is a {config.language_name} sentence:
 
 "{sentence}"
 
@@ -142,7 +138,7 @@ Return an array of the chosen analyses in JSON format without Markdown formattin
 @memory.cache
 def analyze_token(token: str) -> list[tuple[str, float]]:
     '''Wrapper for the uralicNLP analyze function'''
-    return uralicApi.analyze(token, LANGUAGE_CODE) # type: ignore
+    return uralicApi.analyze(token, config.language_code) # type: ignore
 
 def uralicnlp_words(token: str) -> list[str]:
     '''Wrapper for the uralicNLP words function'''

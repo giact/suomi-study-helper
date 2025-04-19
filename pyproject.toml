@@ -7,7 +7,8 @@ dependencies = [
     "platformdirs==4.*",
     "joblib==1.*",
     "uralicNLP==2.*",
-    "openai==1.*"
+    "openai==1.*",
+    "pydantic-settings==2.*"
 ]
 
 [build-system]
