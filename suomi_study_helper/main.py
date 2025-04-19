@@ -68,7 +68,7 @@ class AmbiguousSentenceAnalysis:
             # return the first analysis for each token
             return [UnambiguosTokenAnalysis(token_analysis.token, token_analysis.analyses[0]) for token_analysis in self.__token_analyses]
         else:
-            return disambiguate_sentence_with_gpt(self.sentence, self.__token_analyses)
+            return disambiguate_sentence_with_gpt(self.__token_analyses)
 
 class DataclassJSONEncoder(json.JSONEncoder):
     def default(self, o: Any):
@@ -114,26 +114,30 @@ def is_list(val: Any) -> TypeGuard[list[Any]]:
 def is_list_of_strings(val: Any) -> TypeGuard[list[str]]:
     return is_list(val) and all(isinstance(item, str) for item in val)
 
-def disambiguate_sentence_with_gpt(sentence: str, ambiguous_analysis: list[AmbiguousTokenAnalysis]) -> list[UnambiguosTokenAnalysis]:
-    prompt = f"""Here is a {config.language_name} sentence:
+def is_error_response(val: Any) -> TypeGuard[dict[str, str]]:
+    return isinstance(val, dict) and "error" in val
 
-"{sentence}"
+def disambiguate_sentence_with_gpt(ambiguous_analysis: list[AmbiguousTokenAnalysis]) -> list[UnambiguosTokenAnalysis]:
+    prompt = f"""Here is the morphological analysis of each word in a {config.language_name} sentence:
 
-Here are the morphological analyses of each word:
 {"\n".join(str(analysis) for analysis in ambiguous_analysis)}
 
 Select the most contextually correct analysis for each word.
-Return an array of the chosen analyses in JSON format without Markdown formatting."""
+If the disambiguation is possible, return an array of the chosen analyses in JSON format without Markdown formatting.
+If the disambiguation is impossible, return an error in JSON format (`{{"error": "..."}}), explaining why."""
     json_response = openai_response_create(prompt)
     disambiguated_analysis: Any = json.loads(json_response)
-    if not is_list_of_strings(disambiguated_analysis):
-        raise ValueError("Invalid response format: expected a list.")
-    if len(disambiguated_analysis) != len(ambiguous_analysis):
-        raise ValueError("Invalid response format: length mismatch between response and input.")
-    return [
-        UnambiguosTokenAnalysis(token_analysis.token, analysis)
-        for token_analysis, analysis in zip(ambiguous_analysis, disambiguated_analysis)
-    ]
+    if is_list_of_strings(disambiguated_analysis):
+        if len(disambiguated_analysis) != len(ambiguous_analysis):
+            raise ValueError("Invalid response format: length mismatch between response and input.")
+        return [
+            UnambiguosTokenAnalysis(token_analysis.token, analysis)
+            for token_analysis, analysis in zip(ambiguous_analysis, disambiguated_analysis)
+        ]
+    elif is_error_response(disambiguated_analysis):
+        raise ValueError(f"Error in response: {disambiguated_analysis['error']}")
+    else:
+        raise ValueError(f"Invalid response format: {json_response} is not a list of strings or an error message.")
 
 @memory.cache
 def analyze_token(token: str) -> list[tuple[str, float]]:
@@ -144,7 +148,7 @@ def uralicnlp_words(token: str) -> list[str]:
     '''Wrapper for the uralicNLP words function'''
     return uralicNLP.tokenizer.words(token) # type: ignore
 
-def analyze_sentence(sentence: str) -> UnambiguousSentenceAnalysis:
+def analyze_text(sentence: str) -> UnambiguousSentenceAnalysis:
     analysis: AmbiguousSentenceAnalysis = AmbiguousSentenceAnalysis(sentence, [])
     for token in uralicnlp_words(sentence):
         analysis.add_analysis(
@@ -152,23 +156,11 @@ def analyze_sentence(sentence: str) -> UnambiguousSentenceAnalysis:
             )
     return UnambiguousSentenceAnalysis(sentence, analysis.disambiguate())
 
-def uralicnlp_sentences(paragraph: str) -> list[str]:
-    '''Wrapper for the uralicNLP sentences function'''
-    return uralicNLP.tokenizer.sentences(paragraph) # type: ignore
-
-def analyze_paragraph(paragraph: str) -> list[UnambiguousSentenceAnalysis]:
-    sentences = uralicnlp_sentences(paragraph)
-    analysis: list[UnambiguousSentenceAnalysis] = []
-    for sentence in sentences:
-        analysis.append(analyze_sentence(sentence))
-    return analysis
-
 def main():
-    sentences = analyze_paragraph("Auto on punainen; punainen on kaunis väri.")
-    for sentence in sentences:
-        print(sentence.sentence)
-        for analysis in sentence.analyses:
-            print(f"  {analysis.token} = {analysis.analysis}")
+    #text = analyze_text("Auto on punainen; punainen on kaunis väri.")
+    text = analyze_text("Kuusi")
+    for analysis in text.analyses:
+        print(f"  {analysis.token} = {analysis.analysis}")
 
 if __name__ == "__main__":
     main()
