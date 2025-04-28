@@ -25,7 +25,7 @@ class AmbiguousTokenAnalysis:
     analyses: list[str]
 
     def __str__(self):
-        return f"{self.token} = {self.analyses})"
+        return f"{self.token} = {self.analyses}"
 
 @dataclasses.dataclass
 class UnambiguosTokenAnalysis:
