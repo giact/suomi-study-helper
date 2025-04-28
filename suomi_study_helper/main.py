@@ -123,6 +123,7 @@ def disambiguate_sentence_with_gpt(ambiguous_analysis: list[AmbiguousTokenAnalys
 {"\n".join(str(analysis) for analysis in ambiguous_analysis)}
 
 Select the most contextually correct analysis for each word.
+If the analysis for a word is missing, try to provide it yourself.
 If the disambiguation is possible, return an array of the chosen analyses in JSON format without Markdown formatting.
 If the disambiguation is impossible, return an error in JSON format (`{{"error": "..."}}), explaining why."""
     json_response = openai_response_create(prompt)
@@ -135,6 +136,7 @@ If the disambiguation is impossible, return an error in JSON format (`{{"error":
             for token_analysis, analysis in zip(ambiguous_analysis, disambiguated_analysis)
         ]
     elif is_error_response(disambiguated_analysis):
+        # TODO: raise a custom exception
         raise ValueError(f"Error in response: {disambiguated_analysis['error']}")
     else:
         raise ValueError(f"Invalid response format: {json_response} is not a list of strings or an error message.")
@@ -158,7 +160,8 @@ def analyze_text(sentence: str) -> UnambiguousSentenceAnalysis:
 
 def main():
     #text = analyze_text("Auto on punainen; punainen on kaunis väri.")
-    text = analyze_text("Kuusi")
+    #text = analyze_text("Kuusi")
+    text = analyze_text("Striimi on alkamassa")
     for analysis in text.analyses:
         print(f"  {analysis.token} = {analysis.analysis}")
 
